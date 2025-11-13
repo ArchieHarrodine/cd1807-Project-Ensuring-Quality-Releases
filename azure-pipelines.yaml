@@ -30,66 +30,53 @@ stages:
     #--------------------------------------------#  
     # Use Terraform to create the Infrastructure      
     # Install Terraform on the pipeline agent 
-    - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
-      displayName: 'Terrafom installation'
+    - task: Bash@3
+      displayName: 'Install Terraform'
       inputs:
-        terraformVersion: '1.2.9'
-    
-    # Run Terraform Init on the pipeline agent 
-    # ToDo: Replace the resource group name, storage account name, and container name below
-    - task: ms-devlabs.custom-terraform-tasks.custom-terraform-release-task.TerraformTaskV3@3
-      displayName: 'Terrafom init'
+        targetType: 'inline'
+        script: |
+          sudo apt-get update -y
+          sudo apt-get install -y unzip
+          wget https://releases.hashicorp.com/terraform/1.2.9/terraform_1.2.9_linux_amd64.zip
+          unzip terraform_1.2.9_linux_amd64.zip
+          sudo mv terraform /usr/local/bin/
+          terraform version
+
+    # Terraform init
+    - task: Bash@3
+      displayName: 'Terraform Init'
       inputs:
-        provider: 'azurerm'
-        command: 'init'
-        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform/environments/test'
-        backendServiceArm: '$(azureServiceConnectionId)'
-        backendAzureRmResourceGroupName: ''
-        backendAzureRmStorageAccountName: ''
-        backendAzureRmContainerName: ''
-        backendAzureRmKey: 'test.terraform.tfstate'
+        targetType: 'inline'
+        script: |
+          cd $(System.DefaultWorkingDirectory)/terraform/environments/test
+          terraform init
 
-    - task: ms-devlabs.custom-terraform-tasks.custom-terraform-release-task.TerraformTaskV3@3
-      displayName: Terraform validate
+    # Terraform validate
+    - task: Bash@3
+      displayName: 'Terraform Validate'
       inputs:
-        provider: 'azurerm'
-        command: 'validate'
+        targetType: 'inline'
+        script: |
+          cd $(System.DefaultWorkingDirectory)/terraform/environments/test
+          terraform validate
 
-    # OPTIONAL - This step is needed only if your Terraform VM uses an SSH key pair for login and you want your pipeline agent to connect to it. 
-    # Generate an SSH key pair in your local/AZ Cloud shell. Use the public key in the Terraform VM module. 
-    # Install public key and private key file to the pipeline agent, using the task below. 
-    # ToDo: Change the inputs value below
-    # - task: InstallSSHKey@0
-    #   inputs:
-    #     knownHostsEntry: 'KNOWN_HOSTS_STRING' # variable value
-    #     sshPublicKey: 'PUBLIC_KEY'            # variable value
-    #     sshKeySecureFile: 'id_rsa' # Use secure file feature in the pipeline library UI to save the "id_rsa" file, as mentioned here: https://learn.microsoft.com/en-us/azure/devops/pipelines/library/secure-files?view=azure-devops#add-a-secure-file
-    
-    # - task: DownloadSecureFile@1
-    #  name: udacity_public_key
-    #  displayName: 
-    #  inputs:
-    #   secureFile: 
-
-    
-    # Run Terraform Apply
-    - task: ms-devlabs.custom-terraform-tasks.custom-terraform-release-task.TerraformTaskV3@3
-      displayName: Terraform apply
+    # Terraform apply (auto-approve for CI/CD)
+    - task: Bash@3
+      displayName: 'Terraform Apply'
       inputs:
-        provider: 'azurerm'
-        command: 'apply'
-        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform/environments/test'
-        environmentServiceNameAzureRM: '$(azureServiceConnectionId)'
-
-    # ToDo: Change the workingDirectory path, as applicable to you
-    # Destroy the resources in Azure by running a separate pipeline. 
-    # - task: TerraformTaskV3@3
-    #   displayName: Terraform destroy
-    #   inputs:
-    #     provider: 'azurerm'
-    #     command: 'destroy'
-    #     workingDirectory: '$(System.DefaultWorkingDirectory)/terraform/environments/test'
-    #     environmentServiceNameAzureRM: '$(azureServiceConnectionId)'
+        targetType: 'inline'
+        script: |
+          cd $(System.DefaultWorkingDirectory)/terraform/environments/test
+          terraform apply -auto-approve
+        # ToDo: Change the workingDirectory path, as applicable to you
+        # Destroy the resources in Azure by running a separate pipeline. 
+        # - task: TerraformTaskV3@3
+        #   displayName: Terraform destroy
+        #   inputs:
+        #     provider: 'azurerm'
+        #     command: 'destroy'
+        #     workingDirectory: '$(System.DefaultWorkingDirectory)/terraform/environments/test'
+        #     environmentServiceNameAzureRM: '$(azureServiceConnectionId)'
 
 #--------------------------------------------#    
     # Postman - Install Newman    
@@ -180,7 +167,7 @@ stages:
   - deployment: FakeRestAPI
     pool:
       vmImage: 'Ubuntu-18.04'      
-    environment: <environment name>   # ToDo
+    environment: test-vm   # ToDo
     strategy:
       runOnce:
         deploy:
@@ -210,7 +197,7 @@ stages:
   - deployment: VMDeploy
     displayName: Selenium Tests
     environment:
-      name: env        # ToDo: Change/provide a name
+      name: test-vm        # ToDo: Change/provide a name
       resourceType: VirtualMachine
       tags: selenium
     strategy:
